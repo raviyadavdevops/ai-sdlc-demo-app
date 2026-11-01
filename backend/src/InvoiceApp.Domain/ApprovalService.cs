@@ -4,7 +4,7 @@ namespace InvoiceApp.Domain;
 
 /// <summary>
 /// Moves an invoice through its lifecycle: Draft -> PendingApproval -> Approved or Rejected.
-/// One invoice at a time, decided as a whole by a single approver within that role's limit.
+/// One invoice at a time: up to 500,000 one approver within that role's limit decides it; above 500,000 two distinct approvers are needed (the second a Director).
 /// </summary>
 public class ApprovalService
 {
@@ -60,7 +60,9 @@ public class ApprovalService
         Approve(invoiceId, approver, ApproverRole);
 
     /// <summary>
-    /// Approves a pending invoice on its own, if the amount is within the role's limit.
+    /// Approves a pending invoice. Up to the standalone ceiling one approval within the role's limit
+    /// decides it. Above the ceiling two approvals from two distinct users are required: the first
+    /// by any eligible role (the invoice stays pending), the second by a different Director.
     /// Every check runs before the invoice is touched, so a rejected attempt changes nothing.
     /// </summary>
     public Invoice Approve(string invoiceId, string approver, string role)
@@ -76,7 +78,28 @@ public class ApprovalService
             }
 
             var limit = LimitFor(role);
-            if (invoice.Amount > limit)
+            var requiresDualApproval = invoice.Amount > StandaloneCeiling;
+            var isSecondApproval = false;
+
+            if (requiresDualApproval)
+            {
+                isSecondApproval = invoice.Approvals.Count > 0;
+                if (isSecondApproval)
+                {
+                    if (invoice.Approvals.Any(existing =>
+                            string.Equals(existing.Approver, approver, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        throw new ArgumentException(
+                            $"{approver} has already approved this invoice; a different approver is required.");
+                    }
+
+                    if (role != DirectorRole)
+                    {
+                        throw new ArgumentException("The second approver for this invoice must be a Director.");
+                    }
+                }
+            }
+            else if (invoice.Amount > limit)
             {
                 throw new ArgumentException(
                     $"{role} approval limit is {FormatAmount(limit)}; invoice amount is {FormatAmount(invoice.Amount)}.");
@@ -84,6 +107,14 @@ public class ApprovalService
 
             var decidedAt = DateTime.UtcNow;
             invoice.AddApproval(new InvoiceApprovalRecord(approver, role, decidedAt));
+
+            if (requiresDualApproval && !isSecondApproval)
+            {
+                // First of two approvals: recorded, but the invoice stays pending and undecided.
+                _repository.Update(invoice);
+                return invoice;
+            }
+
             invoice.Status = InvoiceStatus.Approved;
             invoice.DecidedBy = approver;
             invoice.DecidedAt = decidedAt;

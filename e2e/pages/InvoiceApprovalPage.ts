@@ -15,6 +15,26 @@ export class InvoiceApprovalPage {
     await expect(this.page.getByRole('button', { name: 'Sign out' })).toBeVisible();
   }
 
+  async signOut(): Promise<void> {
+    await this.page.getByRole('button', { name: 'Sign out' }).click();
+    await expect(this.page.getByRole('button', { name: 'Sign in' })).toBeVisible();
+  }
+
+  /** The signed-in user shown in the header, e.g. "demo.manager (Manager)". */
+  signedInAs(username: string, role: string): Locator {
+    return this.page.getByText(`${username} (${role})`, { exact: true });
+  }
+
+  /** The entry for one invoice in the pending-approvals list. */
+  pendingItem(invoiceId: string): Locator {
+    return this.page.getByRole('listitem').filter({ hasText: invoiceId });
+  }
+
+  /** The note shown on a pending invoice that is waiting for its second approval. */
+  secondApprovalNotice(invoiceId: string): Locator {
+    return this.pendingItem(invoiceId).getByText('Second approval by a Director required');
+  }
+
   async openApprovalsTab(): Promise<void> {
     await this.page.getByRole('tab', { name: 'Approvals' }).click();
   }

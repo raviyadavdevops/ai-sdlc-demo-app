@@ -84,7 +84,7 @@ every rejected-attempt case. Existing tests are not edited.
 - [x] T013 [P] [US2] Director, Approver and Admin each approve exactly 500,000 → Approved with
       one record (theory/data-driven).
 - [x] T014 [P] [US2] Stage 1 interim:
-      `Approve_AboveDualThreshold_IsRejectedForEveryRole_Stage1Interim` — 500,000.01 for Manager,
+      `Approve_AboveStandaloneCeiling_IsRejectedForEveryRole_Stage1Interim` — 500,000.01 for Manager,
       Director, Approver, Admin → `ArgumentException` (`{Role} approval limit is 500,000; …`),
       snapshot unchanged. (Replaced in Stage 2, see T045.)
 - [x] T015 [P] [US4] Validation order and edge cases: non-pending invoice → `InvalidOperationException`
@@ -153,61 +153,69 @@ every rejected-attempt case. Existing tests are not edited.
 
 ## STAGE 2 — Dual approval above 500,000  (start only after T033 and explicit approval)
 
-- [ ] T034 ⛔ Human approves starting Stage 2.
+- [x] T034 ⛔ Human approves starting Stage 2.
 
 ### S2-A Tests first (expected to fail until S2-B)
 
-- [ ] T035 [P] [US3] First approval on a 600,000 invoice by Manager, Director, Approver and Admin
+- [x] T035 [P] [US3] First approval on a 600,000 invoice by Manager, Director, Approver and Admin
       (each) → one record, `Status == PendingApproval`, `DecidedBy`/`DecidedAt` null.
-- [ ] T036 [P] [US3] Second approval by a different Director after a Manager first → Approved,
+- [x] T036 [P] [US3] Second approval by a different Director after a Manager first → Approved,
       two records, `DecidedBy` = second approver, `Approvals[1].Role == "Director"`.
-- [ ] T037 [P] [US3] Director then a different Director → Approved (D2).
-- [ ] T038 [P] [US3] Same user twice (also with different case, and with role Manager) →
+- [x] T037 [P] [US3] Director then a different Director → Approved (D2).
+- [x] T038 [P] [US3] Same user twice (also with different case, and with role Manager) →
       `ArgumentException` `{username} has already approved…`, snapshot unchanged (checked before
       the role rule).
-- [ ] T039 [P] [US3] Different Manager, Approver or Admin as second approver →
+- [x] T039 [P] [US3] Different Manager, Approver or Admin as second approver →
       `ArgumentException` `The second approver … must be a Director.`, snapshot unchanged.
-- [ ] T040 [P] [US3] Exactly 500,000 is still standalone for Director/Approver/Admin (one
+- [x] T040 [P] [US3] Exactly 500,000 is still standalone for Director/Approver/Admin (one
       approval) and 500,000.01 enters dual approval (boundary pair).
-- [ ] T041 [P] [US4] After a first approval, Manager rejects with reason → Rejected, `Approvals`
+- [x] T041 [P] [US4] After a first approval, Manager rejects with reason → Rejected, `Approvals`
       keeps the first record; third approval attempt on an Approved dual invoice →
       `InvalidOperationException`, snapshot unchanged.
-- [ ] T042 [P] [US4] `RejectedApprovalAttempt_NeverMutatesInvoiceState`: data-driven over every
+- [x] T042 [P] [US4] `RejectedApprovalAttempt_NeverMutatesInvoiceState`: data-driven over every
       rejection category (over-limit, wrong second role, same user, non-pending, unknown role,
       blank approver) using snapshots.
 
 ### S2-B Implementation
 
-- [ ] T043 [US3] `ApprovalService.Approve(id, approver, role)`: replace the fail-closed branch
+- [x] T043 [US3] `ApprovalService.Approve(id, approver, role)`: replace the fail-closed branch
       with the Decision Table dual flow (`Approvals.Count` 0 → first approval, stays pending;
       1 → same-user check first, then Director check, then second record and Approved;
       DecidedBy/At = second approver). All checks before any mutation.
-- [ ] T044 [US3] UI: show "Second approval by a Director required" and the recorded approvers for
+- [x] T044 [US3] UI: show "Second approval by a Director required" and the recorded approvers for
       a pending invoice with one approval (`wwwroot/app.js`, `index.html`).
-- [ ] T045 [US3] Remove the two Stage 1 interim tests `Approve_AboveStandaloneCeiling_IsRejectedForEveryRole_Stage1Interim` and `Approve_LegacyTwoArgumentForm_CannotBypassTheLimit_Stage1Interim` (T014, T016) — it documents interim behaviour that this stage deliberately replaces; note the
-      replacement in `review-findings.md`. No pre-feature test is changed.
-- [ ] T046 [US3] `e2e/tests/dual-approval.spec.ts`: arrange a 600,000 pending invoice via API;
+- [x] T045 [US3] Replace the two Stage 1 interim tests
+      `Approve_AboveStandaloneCeiling_IsRejectedForEveryRole_Stage1Interim` (T014) and
+      `Approve_LegacyTwoArgumentForm_CannotBypassTheLimit_Stage1Interim` (T016) — they document
+      fail-closed behaviour that this stage deliberately replaces. The first becomes
+      `Approve_AboveStandaloneCeiling_NoRoleCanApproveAloneAndFirstApprovalIsOnlyRecorded`; the
+      second is rewritten as `Approve_LegacyTwoArgumentForm_AboveThreshold_RecordsFirstApprovalAndStaysPending`
+      (one legacy Approver call on 600,000 records the first approval, stays pending). Also remove
+      the `Director`/500,001 row of `Approve_RejectedAttempt_NeverSavesTheInvoice` (now a valid
+      first approval, not a rejected attempt). Note the replacements in `review-findings.md`. No
+      pre-feature test is changed.
+- [x] T046 [US3] `e2e/tests/dual-approval.spec.ts`: arrange a 600,000 pending invoice via API;
       `demo.manager` approves → pending notice shown; same user cannot approve again (reason
       shown); `demo.director` completes → Approved displayed. Extend the page object as needed.
 
 ### ⛔ Stage 2 gate
 
-- [ ] T047 Run `dotnet test backend/InvoiceApp.sln`: green, count ≥ Stage 1.
-- [ ] T048 Run Stryker.NET 4.13.0; record the real **final** score next to baseline and Stage 1;
+- [x] T047 Run `dotnet test backend/InvoiceApp.sln`: green, count ≥ Stage 1.
+- [x] T048 Run Stryker.NET 4.13.0; record the real **final** score next to baseline and Stage 1;
       review survivors in duplicate-approver, second-role and boundary mutants; document any left.
-- [ ] T049 Run `cd e2e && npm test`: both specs green.
+- [x] T049 Run `cd e2e && npm test`: both specs green.
 - [ ] T050 Test review of Stage 2 tests (meaningful assertions, no weakened tests).
-- [ ] T051 review-agent independent review of the Stage 2 diff; log all findings with
+- [x] T051 review-agent independent review of the Stage 2 diff; log all findings with
       dispositions; re-check constitution principles II–V.
 - [ ] T052 Manually follow `quickstart.md` Stage 1 and Stage 2 sections (live run).
-- [ ] T053 [P] Update `logs/` with Stage 2 interactions (no secrets).
-- [ ] T054 ⛔ **Human approval**, then commit Stage 2 ("Stage 2: dual approval").
+- [x] T053 [P] Update `logs/` with Stage 2 interactions (no secrets). (Recorded by the logging hook; see ASSIGNMENT.md.)
+- [x] T054 ⛔ **Human approval**, then commit Stage 2 ("Stage 2: dual approval").
 
 ---
 
 ## Phase Final: Deliverables
 
-- [ ] T055 Write root `ASSIGNMENT.md`: rules implemented, decisions D1–D5, test and E2E results,
+- [x] T055 Write root `ASSIGNMENT.md`: rules implemented, decisions D1–D5, test and E2E results,
       baseline / Stage 1 / final mutation scores (copied from real output), review findings with
       dispositions, agents actually used, how to run the demo.
 - [ ] T056 Live demonstration: run tests, Stryker or Playwright live (assignment §7).

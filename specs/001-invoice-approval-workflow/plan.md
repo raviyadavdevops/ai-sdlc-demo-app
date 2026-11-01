@@ -118,8 +118,8 @@ independent `review-agent` review with every finding logged → **human approval
 ### Stage 2 — Dual approval above 500,000
 
 Replaces the fail-closed branch with the dual flow of the Decision Table. The Stage 1 interim
-test `Approve_AboveDualThreshold_IsRejectedForEveryRole_Stage1Interim` is replaced on purpose by
-the Stage 2 tests (it was written for this feature and records interim behaviour; no pre-feature
+test `Approve_AboveStandaloneCeiling_IsRejectedForEveryRole_Stage1Interim` is replaced on purpose by
+`Approve_AboveStandaloneCeiling_NoRoleCanApproveAloneAndFirstApprovalIsOnlyRecorded` and the other Stage 2 tests (it was written for this feature and records interim behaviour; no pre-feature
 test changes). UI shows "second Director approval required". One extra E2E for dual progress.
 
 **Stage 2 gate**: full `dotnet test` → final mutation score vs baseline and Stage 1, survivors

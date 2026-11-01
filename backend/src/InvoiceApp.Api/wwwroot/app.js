@@ -72,11 +72,25 @@
       approve.addEventListener('click', () => decide(`/approvals/${invoice.id}/approve`, {}));
       reject.addEventListener('click', () => decide(`/approvals/${invoice.id}/reject`, { reason: reason.value }));
 
-      return el('li', {},
+      const item = el('li', {},
         el('span', {}, `${invoice.id} · ${invoice.customerName} · ${money.format(invoice.amount)}`),
-        el('span', {}, approve),
-        el('div', { class: 'reject-row' }, reason, reject));
+        el('span', {}, approve));
+      const progress = approvalProgress(invoice);
+      if (progress) item.append(progress);
+      item.append(el('div', { class: 'reject-row' }, reason, reject));
+      return item;
     }));
+  }
+
+  // A pending invoice that already has a recorded approval is waiting for its second one.
+  // This is display only; the server decides who may approve and in what order.
+  function approvalProgress(invoice) {
+    const approvals = invoice.approvals || [];
+    if (approvals.length === 0) return null;
+    const approvers = approvals.map((approval) => `${approval.approver} (${approval.role})`).join(', ');
+    return el('p', { class: 'approval-progress' },
+      el('strong', {}, 'Second approval by a Director required'),
+      ` · Approved so far by ${approvers}`);
   }
 
   async function decide(path, payload) {

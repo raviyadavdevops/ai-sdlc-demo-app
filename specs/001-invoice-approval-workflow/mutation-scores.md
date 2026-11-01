@@ -144,5 +144,115 @@ outside Stage 1 scope, unrelated to the approval rules):
 The limit comparisons (`>` against 50,000 and 500,000), the role lookup and the
 blank-approver check had no survivors in the final run.
 
-## Final score
-Not yet recorded.
+## Final score (T048) — recorded 2026-11-01, uncommitted Stage 2 working tree
+
+Same command and scope as the baseline and Stage 1 (`InvoiceApp.Domain`, Stryker.NET
+**4.13.0**; tool manifest `dotnet-tools.json` pins `dotnet-stryker 4.13.0`, and the log prints
+`Version: 4.13.0`). Run from `backend/tests/InvoiceApp.Tests`, reports written outside the repo
+(session scratchpad `stryker-final-run1/`, `stryker-final-run2/`; nothing added to the source tree):
+
+```powershell
+dotnet tool run dotnet-stryker --project InvoiceApp.Domain.csproj --output <scratchpad>/stryker-final-runN --reporter json --reporter html --reporter cleartext
+```
+
+Code under test: Stage 2 (`ApprovalService` with the dual-approval flow); 102 tests found;
+98 mutants created, 3 CompileError, 22 Ignored (block-already-covered filter), 17 NoCoverage.
+
+**Final mutation score: 67.12 %** = killed 49 ÷ (49 killed + 7 survived + 17 no-coverage = 73).
+**Both runs gave the identical score and identical survivors**; elapsed 1:08 and 0:59; **0 Timeout**
+classifications, so no Timeout was counted as a kill. (Stage 1 had one load-induced run with
+7 Timeouts; that did not recur.)
+
+| Stage | Tests | Score | Killed / Survived / NoCoverage |
+|---|---|---|---|
+| Baseline (T006) | 7 | **30.77 %** | 12 / 10 / 17 |
+| Stage 1 (T028) | 67 | **62.50 %** | 35 / 4 / 17 |
+| **Stage 2 final (T048)** | **102** | **67.12 %** | **49 / 7 / 17** |
+
+Change versus baseline: +36.35 percentage points; versus Stage 1: +4.62 points.
+
+| File | Killed | Survived | NoCoverage | Ignored | CompileError |
+|---|---|---|---|---|---|
+| `ApprovalService.cs` | 47 | 5 | 0 | 16 | 3 |
+| `DiscountCalculator.cs` | 0 | 0 | 17 | 5 | 0 |
+| `Invoice.cs` | 2 | 2 | 0 | 1 | 0 |
+| **Total** | **49** | **7** | **17** | **22** | **3** |
+
+Derived per-file figure (not a Stryker headline): `ApprovalService.cs` 47 ÷ 52 = 90.38 %.
+The project score is capped by `DiscountCalculator.cs` (17 no-coverage mutants, unrelated to
+this feature, no tests, untouched). Without it the project would be 49 ÷ 56 = 87.50 % — a
+derived comparison only; the reported figure stays 67.12 %.
+
+### Survivors (7) and analysis
+
+Line numbers refer to `ApprovalService.cs` / `Invoice.cs` as of this run.
+
+| # | Location | Mutation | Relevant to Stage 2? | Assessment |
+|---|---|---|---|---|
+| 1 | `ApprovalService.cs` L114 | removes `_repository.Update(invoice)` in the **first-approval** branch | Yes — "first approval stays pending" | **Test gap (real).** The tests prove the invoice is left pending with one approval, but not that the first approval is **saved**. With the in-memory repository (same shared instance) the omission is invisible; with any store that copies, a first approval would be lost. The final-approval path has a recording-repository test (`Approve_Success_SavesTheInvoiceExactlyOnce`); the first-approval path has none. Not closed here (no test changes allowed in T048). Proposed: `RecordingInvoiceRepository` test asserting one `Update` after a first approval above 500,000. |
+| 2 | `ApprovalService.cs` L89 | `Any()` → `All()` in the duplicate-approver check | Yes — duplicate detection | **Not killed; reachable only through hand-built state.** With exactly one recorded approval `Any` and `All` are identical, and the service never leaves an invoice pending with two approvals (the second approval completes it). It differs only for a pending invoice seeded with ≥ 2 approvals where the caller matches one of them. So the mutant is unreachable through the public approve flow but **not** strictly equivalent: it is a small test gap on defensive code. Case-insensitive comparison is covered by tests (T038 rows with different case), but Stryker generated no mutant on that comparison, so it is not mutation-verified (see focus areas). Proposed: a test seeding a pending invoice with two records and re-approving as the first approver. |
+| 3 | `ApprovalService.cs` L82 | `var isSecondApproval = false;` → `true` | Yes — sequencing | **Equivalent mutant.** `isSecondApproval` is read only when `requiresDualApproval` is true, and in that case it is reassigned (`= invoice.Approvals.Count > 0`) before any read. The initial value is never observed. (Simplifying the declaration would remove the mutant; not done, since production code is out of T048 scope.) |
+| 4 | `ApprovalService.cs` L47 | string text of `Submit`'s "only drafts can be submitted" message | No | Pre-existing `Submit` code, untouched; **Deferred** (also listed after Stage 1). |
+| 5 | `ApprovalService.cs` L51 | removes `_repository.Update` in `Submit` | No | Pre-existing `Submit` code; **Deferred** (as above). |
+| 6 | `Invoice.cs` L7 | default `Id = string.Empty` → `"Stryker was here!"` | No | Pre-existing default value; **Deferred** (as above). |
+| 7 | `Invoice.cs` L8 | default `CustomerName = string.Empty` → `"Stryker was here!"` | No | Pre-existing default value; **Deferred** (as above). |
+
+### Requested focus areas — what the report shows
+
+Per-line statuses were read from the JSON report (`ApprovalService.cs` L69–L121). Where Stryker
+generated **no** mutant, that is stated; absence of a mutant is not evidence that a test kills it.
+
+- **Duplicate approver:** the `if (Approvals.Any(...))` condition negation (L89) and the throw,
+  its statement and its message string (L92–L93) were **Killed**. `Any()`→`All()` (L89) survived
+  (survivor 2). **Case-insensitivity:** Stryker generated no mutant on the
+  `string.Equals(..., StringComparison.OrdinalIgnoreCase)` call, so this is **not
+  mutation-verified**. It is covered by the T038 rows (e.g. `Demo.Director` vs `demo.director`),
+  which assert the "already approved" message; replacing `OrdinalIgnoreCase` by `Ordinal` was
+  not tried, so whether those rows would catch it is untested by Stryker.
+- **Second approver must be a Director:** `role != DirectorRole` (L96, equality mutation), the
+  throw statement and the message string (L98) were **Killed**; the block-removal mutants at
+  L91 and L97 were **Ignored** by Stryker's block-already-covered filter (not counted).
+- **500,000 boundary and amounts above it:** both equality mutants on `Amount > StandaloneCeiling`
+  (L81) and all mutants on the Manager `Amount > limit` check (L102, L104–L105) were **Killed**.
+- **First approval stays pending:** the `requiresDualApproval && !isSecondApproval` condition
+  (L111: logical, negation, un-negation) and the `Approvals.Count > 0` equality (L86) were
+  **Killed**. The save in this branch (L114) **survived** (survivor 1).
+- **Second approval completes the invoice:** the final-path `_repository.Update` (L121) and
+  `AddApproval` (L109) were **Killed**. Stryker generated no mutants for the `Status = Approved`,
+  `DecidedBy` and `DecidedAt` assignments, so those are verified only by the test assertions
+  (T036, T037), not by mutation testing.
+
+### Limitations
+
+- Survivors 1 and 2 were test gaps when the 67.12 % score was measured; they were closed afterwards,
+  see the follow-up below (new score 69.86 %).
+- The score is the whole-project figure; `DiscountCalculator.cs` is outside this feature.
+- Two runs agreeing is evidence of stability on this machine at this time, not a guarantee;
+  Stage 1 showed one load-induced Timeout run. Any later change to code or tests needs a new run.
+
+### Follow-up: the two test gaps closed — recorded 2026-11-01, 104 tests
+
+Two tests were added (no production logic changed):
+- `Approve_FirstApprovalAboveStandaloneCeiling_IsSavedToTheRepository` — a recording repository
+  proves the first approval is saved (kills survivor 1, L114).
+- `Approve_UserMatchingAnyRecordedApprover_IsRejectedEvenWithMoreThanOneRecord` — a pending invoice
+  hand-built with two approvals; the duplicate check must match any record (kills survivor 2,
+  L89 `Any`→`All`).
+
+One complete Stryker.NET 4.13.0 run with the same command (`stryker-final-run3`): 104 tests found,
+98 mutants created, **Killed 51, Survived 5, NoCoverage 17, Ignored 22, CompileError 3, Timeout 0**,
+elapsed 1:00. **Score: 69.86 %** = 51 ÷ (51 + 5 + 17 = 73). This is **one** run (the 67.12 %
+figure was reproduced twice); it was not repeated because of the submission deadline.
+
+| Stage | Tests | Score |
+|---|---|---|
+| Baseline | 7 | 30.77 % |
+| Stage 1 | 67 | 62.50 % |
+| Stage 2 (before gap tests, 2 identical runs) | 102 | 67.12 % |
+| **Stage 2 final (1 run, after gap tests)** | **104** | **69.86 %** |
+
+Remaining survivors (5): `ApprovalService.cs` L82 (equivalent mutant, see above); L47 and L51
+(`Submit`, pre-existing, Deferred); `Invoice.cs` L7 and L8 (default values, pre-existing, Deferred).
+The `OrdinalIgnoreCase` comparison and the final-approval assignments still have no Stryker mutant
+(not mutation-verified; covered by test assertions). A one-line comment in `ApprovalService.cs`
+was edited after this run; line numbers were unchanged.

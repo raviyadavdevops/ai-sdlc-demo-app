@@ -25,6 +25,19 @@ this session, so it was **not** used. The reviewer read the code and ran `dotnet
 `Approve_LegacyTwoArgumentForm_CannotBypassTheLimit_Stage1Interim` document Stage 1's fail-closed
 behaviour above 500,000 and are replaced on purpose in Stage 2.
 
+### Interim-test replacements carried out in Stage 2 (T045)
+Test maintenance after T043 (dual approval). These are tests written for this feature, not
+pre-feature tests; none was weakened to pass.
+
+| Test (before) | Replaced by | Why |
+|---|---|---|
+| `Approve_AboveStandaloneCeiling_IsRejectedForEveryRole_Stage1Interim` (6 rows: every role above 500,000 rejected with the limit message) | `Approve_AboveStandaloneCeiling_NoRoleCanApproveAloneAndFirstApprovalIsOnlyRecorded` (same 6 role/amount rows) | The fail-closed branch no longer exists. The same rows now assert the Stage 2 rule: a single approval by any role records one approval and the invoice stays `PendingApproval` with `DecidedBy`/`DecidedAt` unset. Rejection messages and snapshot integrity are covered by T038, T039 and `RejectedApprovalAttempt_NeverMutatesInvoiceState`. |
+| `Approve_LegacyTwoArgumentForm_CannotBypassTheLimit_Stage1Interim` | Rewritten in place as `Approve_LegacyTwoArgumentForm_AboveThreshold_RecordsFirstApprovalAndStaysPending` (the duplicate added in T035–T042 was removed, so only one copy exists) | The security property is kept: the two-argument form acts as role `Approver`, so one call on a 600,000 invoice records the first approval and cannot approve the invoice. |
+| `Approve_RejectedAttempt_NeverSavesTheInvoice` row `Director`/500,001 | Row removed; `Manager`/50,001 and `Intern`/100 kept | A Director approving 500,001 is now a valid first approval (and is saved), not a rejected attempt. Never-saves-on-rejection stays covered by the two remaining rows and T042. |
+
+Not changed by T045: all Stage 1 tests at and below 500,000 (boundaries 50,000 / 50,001 /
+500,000, role limits, legacy form at the ceiling, `Reject` at any amount).
+
 ## Stage 1 — independent review, round 2 (T030), 2026-11-01
 
 Reviewer: a fresh `engineering-toolkit:reviewer` agent (read-only), run on the complete latest
@@ -52,3 +65,28 @@ the two deterministic tests fail without the lock and cannot fail from timing wi
 no mutation before any throw; fail-closed above 500,000 with no Stage 2 logic. The previous
 round's claim that the new tests fail on the unfixed code (3 of 3 runs) was observed by me when
 the tests were written; the round-2 reviewer confirmed it only by reasoning.
+
+## Stage 2 — independent review (T051), 2026-11-01
+
+Reviewer: the `engineering-toolkit:reviewer` agent (read-only), run on the uncommitted Stage 2
+diff. The project's own `review-agent` is not an invocable agent type in this session, so it was
+**not** used. The reviewer ran `dotnet test` once (102/102 at that time). It did **not** run
+Playwright or Stryker, did not read `ApprovalServiceTests.cs` in detail, `styles.css`,
+`contracts/approvals-api.md`, or the session/`RequireRole` internals. No CRITICAL, HIGH or MEDIUM
+findings. Checked and found correct: dual-approval rules and check order (same-user before
+Director), case-insensitive duplicate check against every record, no mutation before any throw,
+`DecisionLock` preserved, Reject after a first approval, session-derived identity, UI builds
+nodes with text content (no `innerHTML`), E2E assertions.
+
+| ID | Sev | Finding | Disposition |
+|---|---|---|---|
+| S2-F1 | LOW | `InvoiceApprovalPage.pendingItem` filters list items by substring of the invoice id, so ids that prefix each other (e.g. `INV-1` / `INV-10`) could match several items. | **Dismissed**: ids in this app are fixed-width (`INV-1001`…); revisit if the id format changes. |
+| S2-F2 | LOW | The `ApprovalService` class summary still said an invoice is decided "by a single approver". | **Fixed**: comment now describes the single-approver range and the dual-approval range. |
+| S2-M1 | — | Mutation survivor L114: first-approval save not asserted (test gap). | **Fixed**: `Approve_FirstApprovalAboveStandaloneCeiling_IsSavedToTheRepository`. |
+| S2-M2 | — | Mutation survivor L89: `Any`→`All` in duplicate check (test gap in defensive code). | **Fixed**: `Approve_UserMatchingAnyRecordedApprover_IsRejectedEvenWithMoreThanOneRecord`. |
+| S2-M3 | — | L82 `isSecondApproval = false` → `true`. | **Dismissed**: equivalent mutant, the initial value is never read. |
+| S2-M4 | — | L47, L51 (`Submit`), `Invoice.cs` L7/L8 survivors. | **Deferred**: pre-existing code outside this feature. |
+| S2-M5 | — | `OrdinalIgnoreCase` and final-approval assignments have no Stryker mutant. | **Deferred**: covered by test assertions only; not mutation-verified. |
+
+Limitation: the reviewer did not read the unit tests in detail, so "test review" (T050) rests on
+the mutation analysis and the author's own checks, not an independent test review.
