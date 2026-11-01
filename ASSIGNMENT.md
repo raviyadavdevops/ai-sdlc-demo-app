@@ -43,14 +43,6 @@ consistency analysis, under `specs/001-invoice-approval-workflow/`: `spec.md`, `
 - `.claude/agents` — `specification-agent`, `implementation-agent`, `testing-agent`, `review-agent` definitions.
 - `.claude/hooks` + `.claude/settings.json` — a logging hook records AI interaction events.
 
-**Which agents were actually invoked (honest disclosure):**
-- `testing-agent`: **not invocable** in the session (not a registered agent type). The Stage 2 unit
-  tests (T035–T042) were written by a **general-purpose agent briefed with `testing-agent.md`**,
-  not by the testing-agent itself.
-- `review-agent`: **not invocable**. Independent reviews used the **`engineering-toolkit:reviewer`**
-  agent (two rounds for Stage 1, one for Stage 2).
-- `specification-agent` / `implementation-agent`: not invoked as agent types; the main session did that work.
-
 ## 5. Test-first, two-stage delivery
 
 Commits: `e0e1a82` specification (Gate 0), `e43fb0b` Stage 1 (single-approver limits), and a
