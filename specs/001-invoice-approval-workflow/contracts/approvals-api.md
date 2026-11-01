@@ -26,8 +26,9 @@ query value claiming a user or role is ignored.
   approval's approver and time.
 
 **Response `400 Bad Request`** (`{ "error": "<message>" }`, from `ArgumentException`). Fixed
-message templates (tests assert these exact strings; `{n}` formatted with `InvariantCulture` and pattern `#,##0.##`, so 50,001 and 500,000.01 both
-print exactly):
+message templates (tests assert these exact strings). Amount `{n}` is formatted with
+InvariantCulture and prints every significant decimal digit (for example 50,001 and 500,000.01
+print exactly, and 50000.001 prints as 50,000.001):
 
 | Rule | Message |
 |---|---|

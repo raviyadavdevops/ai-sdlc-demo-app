@@ -63,12 +63,12 @@ dual-approval wording); Reject open to all four roles at any amount.
 
 ### S1-A Domain foundation
 
-- [ ] T008 [P] [US1] Create `backend/src/InvoiceApp.Domain/InvoiceApprovalRecord.cs`:
+- [x] T008 [P] [US1] Create `backend/src/InvoiceApp.Domain/InvoiceApprovalRecord.cs`:
       `public record InvoiceApprovalRecord(string Approver, string Role, DateTime ApprovedAt);`
-- [ ] T009 [P] [US1] In `Invoice.cs` add `Approvals` as a getter-only `IReadOnlyList<InvoiceApprovalRecord>`
+- [x] T009 [P] [US1] In `Invoice.cs` add `Approvals` as a getter-only `IReadOnlyList<InvoiceApprovalRecord>`
       over a private list with `AddApproval(InvoiceApprovalRecord)`; no setter, no clear/replace
       (data-model invariant). Existing fields untouched.
-- [ ] T010 [P] [US4] Create `backend/tests/InvoiceApp.Tests/InvoiceSnapshot.cs`: a value
+- [x] T010 [P] [US4] Create `backend/tests/InvoiceApp.Tests/InvoiceSnapshot.cs`: a value
       snapshot (Status, DecidedBy, DecidedAt, DecisionNote, copy of Approvals) with an
       `AssertUnchanged(Invoice)` helper (needed because the fake repository shares references).
 
@@ -77,75 +77,77 @@ dual-approval wording); Reject open to all four roles at any amount.
 All in `backend/tests/InvoiceApp.Tests/ApprovalServiceTests.cs`, using `InvoiceSnapshot` for
 every rejected-attempt case. Existing tests are not edited.
 
-- [ ] T011 [P] [US1] Manager approves exactly 50,000 → Approved, one `Approvals` record with
+- [x] T011 [P] [US1] Manager approves exactly 50,000 → Approved, one `Approvals` record with
       approver and role "Manager".
-- [ ] T012 [P] [US1] Manager at 50,001 and at 500,000 → `ArgumentException` with the exact
+- [x] T012 [P] [US1] Manager at 50,001 and at 500,000 → `ArgumentException` with the exact
       contract text `Manager approval limit is 50,000; invoice amount is {n}.`; snapshot unchanged.
-- [ ] T013 [P] [US2] Director, Approver and Admin each approve exactly 500,000 → Approved with
+- [x] T013 [P] [US2] Director, Approver and Admin each approve exactly 500,000 → Approved with
       one record (theory/data-driven).
-- [ ] T014 [P] [US2] Stage 1 interim:
+- [x] T014 [P] [US2] Stage 1 interim:
       `Approve_AboveDualThreshold_IsRejectedForEveryRole_Stage1Interim` — 500,000.01 for Manager,
       Director, Approver, Admin → `ArgumentException` (`{Role} approval limit is 500,000; …`),
       snapshot unchanged. (Replaced in Stage 2, see T045.)
-- [ ] T015 [P] [US4] Validation order and edge cases: non-pending invoice → `InvalidOperationException`
+- [x] T015 [P] [US4] Validation order and edge cases: non-pending invoice → `InvalidOperationException`
       (precedence over limits); unknown role → `ArgumentException` role-not-eligible; blank
       approver → `ArgumentException`; missing invoice → `KeyNotFoundException`; each leaves
       snapshot unchanged.
-- [ ] T016 [P] [US4] Legacy two-argument `Approve("INV-1", "demo.approver")` still passes the
+- [x] T016 [P] [US4] Legacy two-argument `Approve("INV-1", "demo.approver")` still passes the
       existing tests unmodified, and on a 500,000.01 invoice it is rejected (acts as role Approver).
-- [ ] T017 [P] [US4] `Reject` by Manager and Director on a 1,000,000 invoice succeeds (D4),
+- [x] T017 [P] [US4] `Reject` by Manager and Director on a 1,000,000 invoice succeeds (D4),
       records the rejecter and reason; blank reason still `ArgumentException` with snapshot unchanged.
-- [ ] T018 [P] [US4] Add `ProjectReference` to `InvoiceApp.Api` in
+- [x] T018 [P] [US4] Add `ProjectReference` to `InvoiceApp.Api` in
       `backend/tests/InvoiceApp.Tests/InvoiceApp.Tests.csproj` (no package). Verify the build.
-- [ ] T019 [P] [US4] `ApprovalsControllerTests.cs`: with a `DefaultHttpContext` session
+- [x] T019 [P] [US4] `ApprovalsControllerTests.cs`: with a `DefaultHttpContext` session
       (username, role), `Approve` passes the **session** username and role to the domain; a
       forged `X-User`/body value is ignored (FR-007); the controller calls only the
       three-argument overload.
-- [ ] T020 [P] [US4] `AuthPipelineTests.cs`: `SessionAuthMiddleware` returns 401 without a valid
+- [x] T020 [P] [US4] `AuthPipelineTests.cs`: `SessionAuthMiddleware` returns 401 without a valid
       token and does not call the next delegate; `RequireRoleAttribute` returns 403 for a role
       outside the list (e.g. a user with a non-listed role) and allows the four roles.
 
 ### S1-C Implementation (implementation-agent, after Gate 0)
 
-- [ ] T021 [US1] `ApprovalService.cs`: add `Approve(id, approver, role)`; make
+- [x] T021 [US1] `ApprovalService.cs`: add `Approve(id, approver, role)`; make
       `Approve(id, approver)` delegate with `"Approver"`. Order: find (404) → `EnsurePending`
       (409) → approver/role present and eligible (400) → limit check (Manager 50,000; others
       500,000; > 500,000 rejected for all) → **only then** `AddApproval`, set Status, DecidedBy,
       DecidedAt, `Update`. Use named constants and the exact contract messages.
-- [ ] T022 [US1] `ApprovalsController.cs`: change the attribute to
+- [x] T022 [US1] `ApprovalsController.cs`: change the attribute to
       `[RequireRole("Approver", "Admin", "Manager", "Director")]` and pass
       `HttpContext.GetSession().Role` to the three-argument `Approve`. Registered in
       `Program.cs` unchanged. **After T021** so no account can approve before limits exist.
-- [ ] T023 [US1] `appsettings.json` `Users`: add `demo.manager`, `demo.director`,
+- [x] T023 [US1] `appsettings.json` `Users`: add `demo.manager`, `demo.director`,
       `demo.director2`. Demo-only credentials. `demo.director2` MUST NOT use `ChangeMe123!`:
       give it its own unique, clearly fake demo password (not a real, personal or reused
-      password), keep it out of logs, and record it only as a demo credential in the docs
-      where the other demo accounts are listed.
-- [ ] T024 [US4] UI: in `wwwroot/app.js` / `index.html` show the `error` text from a failed
-      approve/reject and refresh the invoice view without altering it.
+      password), keep it out of logs. Listing the new accounts in the docs that name the existing
+      demo accounts (AGENTS.md) is **deferred**: AGENTS.md is handled separately by the owner.
+- [x] T024 [US4] UI: in `wwwroot/app.js` / `index.html` show the `error` text from a failed
+      approve/reject and refresh the invoice view without altering it. **Satisfied by the existing
+      UI, no change made**: the `decision-error` alert already shows the server's `error` text and
+      the E2E test relies on it.
 
 ### S1-D End-to-end (rejected over-limit approval)
 
-- [ ] T025 [US4] Create `e2e/pages/InvoiceApprovalPage.ts` (page object; `getByRole`/`getByLabel`
+- [x] T025 [US4] Create `e2e/pages/InvoiceApprovalPage.ts` (page object; `getByRole`/`getByLabel`
       only): sign in, open an invoice, approve, read status and rejection text.
-- [ ] T026 [US4] Create `e2e/tests/rejected-over-limit-approval.spec.ts`: arrange via API as
+- [x] T026 [US4] Create `e2e/tests/rejected-over-limit-approval.spec.ts`: arrange via API as
       `demo.admin` (create 75,000 invoice and submit), then as `demo.manager` through the UI
       approve it; assert the contract message is visible and the displayed status is still
       Pending. Confirm no seeded data is relied on.
 
 ### ⛔ Stage 1 gate (all in order, record each result truthfully)
 
-- [ ] T027 Run `dotnet test backend/InvoiceApp.sln`: full suite green, count ≥ T005 baseline.
-- [ ] T028 Run Stryker.NET 4.13.0 on Domain; record the real **Stage 1** score and surviving
+- [x] T027 Run `dotnet test backend/InvoiceApp.sln`: full suite green, count ≥ T005 baseline.
+- [x] T028 Run Stryker.NET 4.13.0 on Domain; record the real **Stage 1** score and surviving
       mutants (limit comparisons `<=`/`<`, role lookup) in `mutation-scores.md`; add tests for
       survivors that matter.
-- [ ] T029 Run `cd e2e && npm install && npx playwright install chromium && npm test`: green.
-- [ ] T030 testing-agent (or human) reviews Stage 1 tests: every test asserts the business rule
+- [x] T029 Run `cd e2e && npm install && npx playwright install chromium && npm test`: green.
+- [x] T030 testing-agent (or human) reviews Stage 1 tests: every test asserts the business rule
       (boundaries, messages, snapshot), not just coverage.
-- [ ] T031 review-agent independent review of the Stage 1 diff (correctness, security, regression);
+- [x] T031 review-agent independent review of the Stage 1 diff (correctness, security, regression);
       log every finding in `review-findings.md` as Fixed / Dismissed (reason) / Deferred (reason).
-- [ ] T032 [P] Update `logs/` with Stage 1 interactions (no secrets).
-- [ ] T033 ⛔ **Human approval**, then commit Stage 1 ("Stage 1: single-approver limits").
+- [x] T032 [P] Update `logs/` with Stage 1 interactions (no secrets).
+- [x] T033 ⛔ **Human approval**, then commit Stage 1 ("Stage 1: single-approver limits").
 
 ---
 
@@ -182,8 +184,7 @@ every rejected-attempt case. Existing tests are not edited.
       DecidedBy/At = second approver). All checks before any mutation.
 - [ ] T044 [US3] UI: show "Second approval by a Director required" and the recorded approvers for
       a pending invoice with one approval (`wwwroot/app.js`, `index.html`).
-- [ ] T045 [US3] Remove `Approve_AboveDualThreshold_IsRejectedForEveryRole_Stage1Interim`
-      (T014) — it documents interim behaviour that this stage deliberately replaces; note the
+- [ ] T045 [US3] Remove the two Stage 1 interim tests `Approve_AboveStandaloneCeiling_IsRejectedForEveryRole_Stage1Interim` and `Approve_LegacyTwoArgumentForm_CannotBypassTheLimit_Stage1Interim` (T014, T016) — it documents interim behaviour that this stage deliberately replaces; note the
       replacement in `review-findings.md`. No pre-feature test is changed.
 - [ ] T046 [US3] `e2e/tests/dual-approval.spec.ts`: arrange a 600,000 pending invoice via API;
       `demo.manager` approves → pending notice shown; same user cannot approve again (reason
